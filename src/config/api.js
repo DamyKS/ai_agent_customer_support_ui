@@ -19,6 +19,11 @@ export const API_CONFIG = {
       LIST: "/api/v1/conversations/",
       DETAIL: "/api/v1/conversations/", // Will append conversation_id
     },
+    KNOWLEDGE_BASE: {
+      LIST: "/api/v1/knowledge_base/articles/list/",
+      CREATE: "/api/v1/knowledge_base/articles/create/",
+      DETAIL: "/api/v1/knowledge_base/articles/", // Will append article ID
+    },
   },
 }
 
