@@ -1,6 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: "http://127.0.0.1:8000",
+  WS_BASE_URL: "ws://127.0.0.1:8000", // Keep for reference but not used anymore
   ENDPOINTS: {
     AUTH: {
       LOGIN: "/api/v1/auth/login",
@@ -28,3 +29,10 @@ export const API_CONFIG = {
 }
 
 export const getApiUrl = (endpoint) => `${API_CONFIG.BASE_URL}${endpoint}`
+
+// Deprecated - WebSocket URL construction is now handled in useWebSocket hook
+export const getWebSocketUrl = (endpoint) => {
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+  const wsHost = "127.0.0.1:8000"
+  return `${wsProtocol}//${wsHost}${endpoint}`
+}

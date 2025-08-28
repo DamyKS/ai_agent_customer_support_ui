@@ -1,7 +1,18 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Search, Filter, MoreHorizontal, MessageSquare, Loader2, AlertCircle, Check, CheckCheck } from "lucide-react"
+import {
+  Search,
+  Filter,
+  MoreHorizontal,
+  MessageSquare,
+  Loader2,
+  AlertCircle,
+  Check,
+  CheckCheck,
+  Wifi,
+  WifiOff,
+} from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -12,6 +23,7 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { conversationService } from "../../services/conversationService"
 import { formatTimeAgo } from "../../utils/dateUtils"
+import { useChatWebSocket } from "../../hooks/useChatWebSocket"
 import {
   getSenderDisplayName,
   getSenderShortName,
@@ -23,15 +35,29 @@ import {
 export function Chats() {
   const [conversations, setConversations] = useState([])
   const [selectedChat, setSelectedChat] = useState(null)
-  const [messages, setMessages] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [error, setError] = useState("")
   const [messagesError, setMessagesError] = useState("")
+  const [newMessage, setNewMessage] = useState("")
 
   // Store additional conversation data for later use
   const [conversationMetadata, setConversationMetadata] = useState({})
+
+  // WebSocket hook for real-time chat
+  const {
+    messages: wsMessages,
+    isTyping,
+    connectionStatus,
+    isConnected,
+    sendMessage: sendWSMessage,
+    clearMessages,
+  } = useChatWebSocket(selectedChat?.id)
+
+  // Combine WebSocket messages with fetched messages
+  const [fetchedMessages, setFetchedMessages] = useState([])
+  const [allMessages, setAllMessages] = useState([])
 
   // Add this after the existing state declarations
   const messagesEndRef = useRef(null)
@@ -46,13 +72,34 @@ export function Chats() {
     }
   }, [selectedChat])
 
+  // Combine fetched messages with WebSocket messages
+  useEffect(() => {
+    // Merge fetched messages with WebSocket messages, avoiding duplicates
+    const messageMap = new Map()
+
+    // Add fetched messages first
+    fetchedMessages.forEach((msg) => {
+      messageMap.set(msg.id, msg)
+    })
+
+    // Add WebSocket messages (they might override fetched ones or add new ones)
+    wsMessages.forEach((msg) => {
+      messageMap.set(msg.id, msg)
+    })
+
+    // Convert back to array and sort by timestamp
+    const combined = Array.from(messageMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+
+    setAllMessages(combined)
+  }, [fetchedMessages, wsMessages])
+
   // Add this useEffect after the existing useEffect hooks
   useEffect(() => {
     // Scroll to bottom when messages are loaded or updated
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages])
+  }, [allMessages])
 
   const fetchConversations = async () => {
     setLoading(true)
@@ -98,14 +145,14 @@ export function Chats() {
     try {
       const result = await conversationService.getConversationMessages(conversationId)
       if (result.success) {
-        setMessages(result.data)
+        setFetchedMessages(result.data)
       } else {
         setMessagesError(result.error)
-        setMessages([])
+        setFetchedMessages([])
       }
     } catch (error) {
       setMessagesError("Failed to load messages")
-      setMessages([])
+      setFetchedMessages([])
     } finally {
       setMessagesLoading(false)
     }
@@ -113,7 +160,29 @@ export function Chats() {
 
   const handleChatSelect = (chat) => {
     setSelectedChat(chat)
-    setMessages([]) // Clear previous messages while loading new ones
+    setFetchedMessages([]) // Clear previous messages while loading new ones
+    clearMessages() // Clear WebSocket messages
+  }
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !selectedChat) return
+
+    try {
+      // Send via WebSocket
+      sendWSMessage(newMessage)
+      setNewMessage("")
+    } catch (error) {
+      console.error("Failed to send message:", error)
+      setMessagesError("Failed to send message")
+    }
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage(e)
+    }
   }
 
   const getStatusVariant = (status) => {
@@ -187,6 +256,17 @@ export function Chats() {
         return "API"
       default:
         return channel.charAt(0).toUpperCase() + channel.slice(1)
+    }
+  }
+
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return <Wifi className="h-4 w-4 text-green-600" />
+      case "error":
+        return <WifiOff className="h-4 w-4 text-red-600" />
+      default:
+        return <WifiOff className="h-4 w-4 text-gray-400" />
     }
   }
 
@@ -317,7 +397,7 @@ export function Chats() {
         </Card>
 
         {/* Chat Detail */}
-        <Card className="md:col-span-2 flex flex-col h-[calc(100vh-4rem)]">
+        <Card className="md:col-span-2 flex flex-col h-[calc(100vh-12rem)]">
           {selectedChat ? (
             <>
               <CardHeader className="flex-shrink-0">
@@ -350,6 +430,12 @@ export function Chats() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1">
+                      {getConnectionStatusIcon()}
+                      <span className="text-xs text-muted-foreground">
+                        {connectionStatus === "connected" ? "Live" : "Offline"}
+                      </span>
+                    </div>
                     <Badge
                       variant={getStatusVariant(selectedChat.status)}
                       className={getStatusColor(selectedChat.status)}
@@ -409,12 +495,12 @@ export function Chats() {
                         <span className="text-sm text-muted-foreground">Loading messages...</span>
                       </div>
                     </div>
-                  ) : messages.length === 0 ? (
+                  ) : allMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-32">
                       <p className="text-sm text-muted-foreground">No messages in this conversation</p>
                     </div>
                   ) : (
-                    messages.map((message) => (
+                    allMessages.map((message) => (
                       <div
                         key={message.id}
                         className={`flex ${isCustomerMessage(message) ? "justify-start" : "justify-end"}`}
@@ -428,6 +514,7 @@ export function Chats() {
                                 message.customer?.avatar ||
                                 message.sender_user?.avatar ||
                                 "/placeholder.svg?height=32&width=32" ||
+                                "/placeholder.svg" ||
                                 "/placeholder.svg" ||
                                 "/placeholder.svg" ||
                                 "/placeholder.svg"
@@ -465,14 +552,53 @@ export function Chats() {
                       </div>
                     ))
                   )}
+
+                  {/* Typing indicator */}
+                  {isTyping && (
+                    <div className="flex justify-start">
+                      <div className="flex gap-2 max-w-[80%]">
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback className="text-xs">C</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col items-start">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-muted-foreground">Customer is typing...</span>
+                          </div>
+                          <div className="bg-muted text-foreground rounded-lg p-3">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div
+                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                style={{ animationDelay: "0.1s" }}
+                              ></div>
+                              <div
+                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                style={{ animationDelay: "0.2s" }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Add this div for auto-scroll reference */}
                   <div ref={messagesEndRef} />
                 </div>
                 <Separator className="mb-4" />
-                <div className="flex gap-2 flex-shrink-0">
-                  <Input placeholder="Type your message..." className="flex-1" />
-                  <Button>Send</Button>
-                </div>
+                <form onSubmit={handleSendMessage} className="flex gap-2 flex-shrink-0">
+                  <Input
+                    placeholder="Type your message..."
+                    className="flex-1"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={!isConnected}
+                  />
+                  <Button type="submit" disabled={!newMessage.trim() || !isConnected}>
+                    Send
+                  </Button>
+                </form>
               </CardContent>
             </>
           ) : (
