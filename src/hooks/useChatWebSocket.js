@@ -122,17 +122,6 @@ export const useChatWebSocket = (conversationId) => {
         timestamp: new Date().toISOString(),
       }
 
-      // Optimistic update - add message immediately
-      const optimisticMessage = {
-        id: `temp-${Date.now()}`,
-        text_content: message.trim(),
-        sender_type: "admin",
-        timestamp: new Date().toISOString(),
-        sender_user: { full_name: "Admin" },
-      }
-
-      setMessages((prev) => [...prev, optimisticMessage])
-
       sendMessage(messageData)
     },
     [isConnected, sendMessage],

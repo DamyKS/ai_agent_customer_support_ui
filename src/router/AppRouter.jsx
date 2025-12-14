@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { useAuth } from "../context/AuthContext"
 import { AdminLayout } from "../layouts/AdminLayout"
 import { Dashboard } from "../pages/Dashboard/Dashboard"
-import { Chats } from "../pages/Chats/Chats"
+
+import Chats from "../pages/Chats/Chats"
 import { KnowledgeBase } from "../pages/KnowledgeBase/KnowledgeBase"
 import { Users } from "../pages/Users/Users"
 import { Settings } from "../pages/Settings/Settings"

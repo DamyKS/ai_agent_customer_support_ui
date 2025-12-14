@@ -32,7 +32,7 @@ import {
   getMessageStatus,
 } from "../../utils/messageUtils"
 
-export function Chats() {
+export default function Chats() {
   const [conversations, setConversations] = useState([])
   const [selectedChat, setSelectedChat] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -514,9 +514,6 @@ export function Chats() {
                                 message.customer?.avatar ||
                                 message.sender_user?.avatar ||
                                 "/placeholder.svg?height=32&width=32" ||
-                                "/placeholder.svg" ||
-                                "/placeholder.svg" ||
-                                "/placeholder.svg" ||
                                 "/placeholder.svg"
                               }
                             />
@@ -524,78 +521,78 @@ export function Chats() {
                           </Avatar>
                           <div className={`flex flex-col ${isCustomerMessage(message) ? "items-start" : "items-end"}`}>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-medium text-muted-foreground">
-                                {getSenderDisplayName(message)}
-                              </span>
+                              <span className="text-xs font-medium">{getSenderDisplayName(message)}</span>
                               <span className="text-xs text-muted-foreground">
                                 {formatMessageTime(message.timestamp)}
                               </span>
                             </div>
                             <div
-                              className={`rounded-lg p-3 ${
+                              className={`rounded-lg px-4 py-2 ${
                                 isCustomerMessage(message)
                                   ? "bg-muted text-foreground"
                                   : "bg-primary text-primary-foreground"
                               }`}
                             >
                               <p className="text-sm whitespace-pre-wrap">{message.text_content}</p>
-                              <div className="flex items-center justify-end mt-1 gap-1">
-                                {getMessageStatus(message) === "read" ? (
-                                  <CheckCheck className="h-3 w-3 opacity-60" />
-                                ) : (
-                                  <Check className="h-3 w-3 opacity-60" />
-                                )}
-                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 mt-1">
+                              {!isCustomerMessage(message) && getMessageStatus(message) === "sent" && (
+                                <Check className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              {!isCustomerMessage(message) && getMessageStatus(message) === "read" && (
+                                <CheckCheck className="h-3 w-3 text-blue-600" />
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
                     ))
                   )}
-
-                  {/* Typing indicator */}
                   {isTyping && (
                     <div className="flex justify-start">
                       <div className="flex gap-2 max-w-[80%]">
                         <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="text-xs">C</AvatarFallback>
+                          <AvatarImage src={selectedChat.customer.avatar || "/placeholder.svg"} />
+                          <AvatarFallback className="text-xs">
+                            {selectedChat.customer.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col items-start">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-medium text-muted-foreground">Customer is typing...</span>
-                          </div>
-                          <div className="bg-muted text-foreground rounded-lg p-3">
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                              <div
-                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                style={{ animationDelay: "0.1s" }}
-                              ></div>
-                              <div
-                                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                style={{ animationDelay: "0.2s" }}
-                              ></div>
-                            </div>
+                        <div className="bg-muted rounded-lg px-4 py-2">
+                          <div className="flex gap-1">
+                            <span
+                              className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                              style={{ animationDelay: "0ms" }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                              style={{ animationDelay: "150ms" }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                              style={{ animationDelay: "300ms" }}
+                            />
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Add this div for auto-scroll reference */}
                   <div ref={messagesEndRef} />
                 </div>
-                <Separator className="mb-4" />
-                <form onSubmit={handleSendMessage} className="flex gap-2 flex-shrink-0">
+                <Separator className="my-4" />
+                <form onSubmit={handleSendMessage} className="flex gap-2">
                   <Input
                     placeholder="Type your message..."
-                    className="flex-1"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     disabled={!isConnected}
+                    className="flex-1"
                   />
-                  <Button type="submit" disabled={!newMessage.trim() || !isConnected}>
+                  <Button type="submit" disabled={!isConnected || !newMessage.trim()}>
                     Send
                   </Button>
                 </form>
